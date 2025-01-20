@@ -1,0 +1,360 @@
+<html lang="en">
+<head>
+    <title>Торговый симулятор</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        body {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            color: var(--text-primary);
+        }
+
+        .controls {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .controls input {
+            width: 120px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .controls input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .controls label {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        .stats-container {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+            background: var(--bg-color);
+            border-radius: 10px;
+            transition: transform 0.2s;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .container {
+            display: flex;
+            gap: 30px;
+            margin: 0;
+        }
+
+        .table-container, .chart-container {
+            flex: 1;
+            min-width: 400px;
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th {
+            background: var(--bg-color);
+            padding: 12px;
+            font-weight: 500;
+            text-align: left;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:hover {
+            background: var(--bg-color);
+        }
+
+        #balanceChart {
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label>Начальный депозит ($):
+            <input type="number" id="initialDeposit" value="1000">
+        </label>
+        <label>Риск на сделку (%):
+            <input type="number" id="riskPerTrade" value="1" step="0.1">
+        </label>
+        <label>Risk:Reward:
+            <input type="number" id="riskRewardRatio" value="4" step="0.1">
+        </label>
+        <label>Процент прибыльных сделок:
+            <input type="number" id="targetWinRate" value="35" min="0" max="100" step="1">
+        </label>
+        <button onclick="generateTrades()">Сгенерировать новые сделки</button>
+    </div>
+    
+    <div class="stats-container">
+        <div class="stat-item">
+            <div class="stat-value" id="actualWinRate">0%</div>
+            <div class="stat-label">Процент прибыльных сделок</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="totalProfit">$0</div>
+            <div class="stat-label">Общая прибыль/убыток</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="maxDrawdown">0%</div>
+            <div class="stat-label">Максимальная просадка</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="profitFactor">0</div>
+            <div class="stat-label">Профит фактор</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="table-container">
+            <table id="tradesTable">
+                <thead>
+                    <tr>
+                        <th>№ сделки</th>
+                        <th>Результат</th>
+                        <th>Прибыль/Убыток ($)</th>
+                        <th>Баланс ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="tradesBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="balanceChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let balanceChart;
+
+        function generateTrades() {
+            const initialDeposit = parseFloat(document.getElementById('initialDeposit').value);
+            const riskPerTrade = parseFloat(document.getElementById('riskPerTrade').value) / 100;
+            const riskRewardRatio = parseFloat(document.getElementById('riskRewardRatio').value);
+            const targetWinRate = parseFloat(document.getElementById('targetWinRate').value) / 100;
+            
+            let currentBalance = initialDeposit;
+            const tbody = document.getElementById('tradesBody');
+            tbody.innerHTML = '';
+
+            const balanceHistory = [initialDeposit];
+            const labels = ['Старт'];
+
+            let winCount = 0;
+            let totalProfit = 0;
+            let maxBalance = initialDeposit;
+            let maxDrawdown = 0;
+            let totalWinAmount = 0;
+            let totalLossAmount = 0;
+
+            // Фиксированная сумма риска от начального депозита
+            const fixedRiskAmount = initialDeposit * riskPerTrade;
+
+            const totalTrades = 500; // Изменяем количество сделок
+
+            for (let i = 1; i <= totalTrades; i++) {
+                const row = document.createElement('tr');
+                const isWin = Math.random() < targetWinRate;
+                
+                if (isWin) winCount++;
+                
+                // Используем фиксированную сумму риска вместо процента от текущего баланса
+                const tradeResult = isWin ? 
+                    (fixedRiskAmount * riskRewardRatio) : 
+                    -fixedRiskAmount;
+                
+                if (tradeResult > 0) {
+                    totalWinAmount += tradeResult;
+                } else {
+                    totalLossAmount += Math.abs(tradeResult);
+                }
+                
+                currentBalance += tradeResult;
+                totalProfit = currentBalance - initialDeposit;
+                
+                balanceHistory.push(currentBalance);
+                labels.push(`Сделка ${i}`);
+                
+                // Расчет максимальной просадки
+                if (currentBalance > maxBalance) {
+                    maxBalance = currentBalance;
+                } else {
+                    const drawdown = (maxBalance - currentBalance) / maxBalance * 100;
+                    if (drawdown > maxDrawdown) {
+                        maxDrawdown = drawdown;
+                    }
+                }
+
+                row.innerHTML = `
+                    <td>${i}</td>
+                    <td>${isWin ? 'Выигрыш' : 'Проигрыш'}</td>
+                    <td>${tradeResult.toFixed(2)}</td>
+                    <td>${currentBalance.toFixed(2)}</td>
+                `;
+                
+                tbody.appendChild(row);
+            }
+
+            updateStats(winCount, totalProfit, maxDrawdown, totalWinAmount, totalLossAmount);
+            updateChart(labels, balanceHistory);
+        }
+
+        function updateChart(labels, balanceHistory) {
+            if (balanceChart) {
+                balanceChart.destroy();
+            }
+
+            const ctx = document.getElementById('balanceChart').getContext('2d');
+            balanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Баланс счета',
+                        data: balanceHistory,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Динамика баланса'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Баланс ($)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Сделки'
+                            },
+                            ticks: {
+                                // Показываем метки каждой 50-й сделки для лучшей читаемости
+                                callback: function(value, index) {
+                                    if (index === 0) return 'Старт';
+                                    if ((index - 1) % 50 === 0) return `Сделка ${index - 1}`;
+                                    return '';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStats(winCount, totalProfit, maxDrawdown, totalWinAmount, totalLossAmount) {
+            const winRate = (winCount / 500) * 100; // Обновляем расчет процента
+            const profitFactor = totalLossAmount > 0 ? totalWinAmount / totalLossAmount : totalWinAmount;
+
+            document.getElementById('actualWinRate').textContent = `${winRate.toFixed(1)}%`;
+            document.getElementById('totalProfit').textContent = `$${totalProfit.toFixed(2)}`;
+            document.getElementById('maxDrawdown').textContent = `${maxDrawdown.toFixed(1)}%`;
+            document.getElementById('profitFactor').textContent = profitFactor.toFixed(2);
+        }
+
+        // Генерируем первоначальные данные при загрузке страницы
+        generateTrades();
+    </script>
+</body>
+</html>
